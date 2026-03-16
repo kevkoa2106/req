@@ -2,8 +2,6 @@
 
 A lightweight command-line HTTP client written in Rust. Define your HTTP requests in `.rest` files and execute them from the terminal with pretty-printed JSON responses.
 
-Inspired by tools like [hurl](https://github.com/Orange-OpenSource/hurl) and the VS Code REST Client extension.
-
 ## Features
 
 - Parse and execute HTTP requests from `.rest` files
