@@ -8,3 +8,5 @@ crossterm = "0.29.0"
 ratatui = "0.30.0"
 ratatui-code-editor = "0.0.3"
 ratatui-widgets = "0.3.0"
+reqwest = { version = "0.13.2", features = ["json", "form"] }
+tokio = { version = "1.50.0", features = ["full"] }
