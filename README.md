@@ -44,7 +44,7 @@ The response will be printed as formatted JSON to stdout.
 
 ```
 METHOD URL
-Header-Name: Header-Value
+Header-Name: Header-Value (optional)
 
 Body (optional, separated by a blank line)
 ```
@@ -67,10 +67,10 @@ cargo build --release
 
 ## Roadmap
 
-- [ ] Support all HTTP methods (PUT, DELETE, PATCH, HEAD, OPTIONS)
+- [x] Support all HTTP methods (PUT, DELETE, PATCH, GET, POST)
 - [ ] Multiple requests per file (separated by `###`)
 - [ ] HTTPS support in parser
-- [ ] Multiple headers per request
+- [x] Multiple headers per request
 - [ ] Variable substitution (`{{variable}}`)
 - [ ] CLI arguments (file path, verbose mode)
 - [ ] Response metadata display (status code, headers)
