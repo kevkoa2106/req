@@ -5,7 +5,7 @@ use wiremock::matchers::{body_string, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use req::parser::{Token, TokenType};
-use req::requests::send_post_req;
+use req::requests::{send_delete_req, send_patch_req, send_post_req, send_put_req};
 
 fn make_headers_map() -> HashMap<&'static str, reqwest::header::HeaderName> {
     HashMap::from([
@@ -122,7 +122,6 @@ async fn post_empty_body() {
         .mount(&server)
         .await;
 
-    // No header or body tokens — just method and URL
     let tokens = vec![
         Token {
             token_type: TokenType::Method,
@@ -177,7 +176,6 @@ async fn post_server_returns_error() {
     let headers = make_headers_map();
     let result = send_post_req(client, &tokens, &format!("{}/fail", server.uri()), &headers).await;
 
-    // The function returns the response body even on 500
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "internal server error");
 }
@@ -203,7 +201,7 @@ async fn post_unknown_header_is_ignored() {
         },
         Token {
             token_type: TokenType::Header,
-            value: "X-Custom-Unknown".to_string(), // not in our headers map
+            value: "X-Custom-Unknown".to_string(),
         },
         Token {
             token_type: TokenType::HeaderValue,
@@ -219,7 +217,6 @@ async fn post_unknown_header_is_ignored() {
     let headers = make_headers_map();
     let result = send_post_req(client, &tokens, &format!("{}/data", server.uri()), &headers).await;
 
-    // Unknown header is silently skipped, request still succeeds
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "done");
 }
@@ -233,7 +230,7 @@ async fn post_connection_refused() {
         },
         Token {
             token_type: TokenType::URL,
-            value: "http://127.0.0.1:1".to_string(), // nothing listening
+            value: "http://127.0.0.1:1".to_string(),
         },
         Token {
             token_type: TokenType::Body,
@@ -246,4 +243,119 @@ async fn post_connection_refused() {
     let result = send_post_req(client, &tokens, "http://127.0.0.1:1", &headers).await;
 
     assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn put_with_body() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("PUT"))
+        .and(path("/api/1"))
+        .and(body_string(r#"{"name": "updated"}"#))
+        .respond_with(ResponseTemplate::new(200).set_body_string("updated"))
+        .mount(&server)
+        .await;
+
+    let tokens = vec![
+        Token {
+            token_type: TokenType::Method,
+            value: "PUT".to_string(),
+        },
+        Token {
+            token_type: TokenType::URL,
+            value: format!("{}/api/1", server.uri()),
+        },
+        Token {
+            token_type: TokenType::Body,
+            value: r#"{"name": "updated"}"#.to_string(),
+        },
+    ];
+
+    let client = reqwest::Client::new();
+    let headers = make_headers_map();
+    let result = send_put_req(
+        client,
+        &tokens,
+        &format!("{}/api/1", server.uri()),
+        &headers,
+    )
+    .await;
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), "updated");
+}
+
+#[tokio::test]
+async fn delete_simple() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("DELETE"))
+        .and(path("/api/1"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("deleted"))
+        .mount(&server)
+        .await;
+
+    let tokens = vec![
+        Token {
+            token_type: TokenType::Method,
+            value: "DELETE".to_string(),
+        },
+        Token {
+            token_type: TokenType::URL,
+            value: format!("{}/api/1", server.uri()),
+        },
+    ];
+
+    let client = reqwest::Client::new();
+    let headers = make_headers_map();
+    let result = send_delete_req(
+        client,
+        &tokens,
+        &format!("{}/api/1", server.uri()),
+        &headers,
+    )
+    .await;
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), "deleted");
+}
+
+#[tokio::test]
+async fn patch_with_body() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("PATCH"))
+        .and(path("/api/1"))
+        .and(body_string(r#"{"name": "patched"}"#))
+        .respond_with(ResponseTemplate::new(200).set_body_string("patched"))
+        .mount(&server)
+        .await;
+
+    let tokens = vec![
+        Token {
+            token_type: TokenType::Method,
+            value: "PATCH".to_string(),
+        },
+        Token {
+            token_type: TokenType::URL,
+            value: format!("{}/api/1", server.uri()),
+        },
+        Token {
+            token_type: TokenType::Body,
+            value: r#"{"name": "patched"}"#.to_string(),
+        },
+    ];
+
+    let client = reqwest::Client::new();
+    let headers = make_headers_map();
+    let result = send_patch_req(
+        client,
+        &tokens,
+        &format!("{}/api/1", server.uri()),
+        &headers,
+    )
+    .await;
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), "patched");
 }

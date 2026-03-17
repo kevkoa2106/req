@@ -2,14 +2,33 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
+    sync::LazyLock,
 };
 
 use reqwest::header::{
-    ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, CACHE_CONTROL, CONNECTION, HOST, IF_MODIFIED_SINCE,
-    IF_NONE_MATCH, REFERER, UPGRADE_INSECURE_REQUESTS, USER_AGENT,
+    ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, CACHE_CONTROL, CONNECTION, CONTENT_TYPE, HOST,
+    HeaderName, IF_MODIFIED_SINCE, IF_NONE_MATCH, REFERER, UPGRADE_INSECURE_REQUESTS, USER_AGENT,
 };
 
 use crate::requests::{send_delete_req, send_patch_req, send_post_req, send_put_req};
+
+static HEADERS: LazyLock<HashMap<&str, HeaderName>> = LazyLock::new(|| {
+    let headers = HashMap::from([
+        ("Host", HOST),
+        ("User-Agent", USER_AGENT),
+        ("Accept", ACCEPT),
+        ("Accept-Language", ACCEPT_LANGUAGE),
+        ("Accept-Encoding", ACCEPT_ENCODING),
+        ("Referer", REFERER),
+        ("Connection", CONNECTION),
+        ("Upgrade-Insecure-Requests", UPGRADE_INSECURE_REQUESTS),
+        ("If-Modified-Since", IF_MODIFIED_SINCE),
+        ("If-None-Match", IF_NONE_MATCH),
+        ("Cache-Control", CACHE_CONTROL),
+        ("Content-Type", CONTENT_TYPE),
+    ]);
+    headers
+});
 
 #[derive(Debug, Clone)]
 pub enum TokenType {
@@ -29,19 +48,6 @@ pub struct Token {
 
 pub fn tokenize(filename: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
-    let headers = HashMap::from([
-        ("Host", HOST),
-        ("User-Agent", USER_AGENT),
-        ("Accept", ACCEPT),
-        ("Accept-Language", ACCEPT_LANGUAGE),
-        ("Accept-Encoding", ACCEPT_ENCODING),
-        ("Referer", REFERER),
-        ("Connection", CONNECTION),
-        ("Upgrade-Insecure-Requests", UPGRADE_INSECURE_REQUESTS),
-        ("If-Modified-Since", IF_MODIFIED_SINCE),
-        ("If-None-Match", IF_NONE_MATCH),
-        ("Cache-Control", CACHE_CONTROL),
-    ]);
 
     let reader = BufReader::new(File::open(filename).expect("Cannot open file"));
 
@@ -55,7 +61,7 @@ pub fn tokenize(filename: &str) -> Vec<Token> {
                     if !body.is_empty() {
                         body.push(' ');
                     }
-                    body.push_str(&l);
+                    body.push_str(l.trim());
                 }
             }
             if !body.is_empty() {
@@ -69,7 +75,7 @@ pub fn tokenize(filename: &str) -> Vec<Token> {
 
         if let Some((key, value)) = line.split_once(':') {
             let key = key.trim();
-            if headers.contains_key(key) {
+            if HEADERS.contains_key(key) {
                 tokens.push(Token {
                     token_type: TokenType::Header,
                     value: key.to_string(),
@@ -92,7 +98,7 @@ pub fn tokenize(filename: &str) -> Vec<Token> {
                     token_type: TokenType::Method,
                     value: word.to_string(),
                 });
-            } else if word.starts_with("http://") {
+            } else if word.starts_with("http://") || word.starts_with("https://") {
                 tokens.push(Token {
                     token_type: TokenType::URL,
                     value: word.to_string(),
@@ -109,20 +115,6 @@ pub async fn process(
     client: reqwest::Client,
     tokens: &Vec<Token>,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let headers = HashMap::from([
-        ("Host", HOST),
-        ("User-Agent", USER_AGENT),
-        ("Accept", ACCEPT),
-        ("Accept-Language", ACCEPT_LANGUAGE),
-        ("Accept-Encoding", ACCEPT_ENCODING),
-        ("Referer", REFERER),
-        ("Connection", CONNECTION),
-        ("Upgrade-Insecure-Requests", UPGRADE_INSECURE_REQUESTS),
-        ("If-Modified-Since", IF_MODIFIED_SINCE),
-        ("If-None-Match", IF_NONE_MATCH),
-        ("Cache-Control", CACHE_CONTROL),
-    ]);
-
     let mut method = String::new();
     let mut url = String::new();
 
@@ -136,10 +128,10 @@ pub async fn process(
 
     match method.as_str() {
         "GET" => Ok(client.get(url.clone()).send().await?.text().await?),
-        "POST" => Ok(send_post_req(client, &tokens, url.as_str(), &headers).await?),
-        "PUT" => Ok(send_put_req(client, &tokens, url.as_str(), &headers).await?),
-        "DELETE" => Ok(send_delete_req(client, &tokens, url.as_str(), &headers).await?),
-        "PATCH" => Ok(send_patch_req(client, &tokens, url.as_str(), &headers).await?),
+        "POST" => Ok(send_post_req(client, &tokens, url.as_str(), &HEADERS).await?),
+        "PUT" => Ok(send_put_req(client, &tokens, url.as_str(), &HEADERS).await?),
+        "DELETE" => Ok(send_delete_req(client, &tokens, url.as_str(), &HEADERS).await?),
+        "PATCH" => Ok(send_patch_req(client, &tokens, url.as_str(), &HEADERS).await?),
         _ => Err(format!("unsupported method: {method}").into()),
     }
 }

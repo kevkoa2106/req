@@ -67,8 +67,8 @@ cargo build --release
 
 - [x] Support all HTTP methods (PUT, DELETE, PATCH, GET, POST)
 - [ ] Multiple requests per file (separated by `###`)
-- [ ] HTTPS support in parser
-- [ ] Multiple headers per request
+- [x] HTTPS support in parser
+- [x] Multiple headers per request
 - [ ] Variable substitution (`{{variable}}`)
 - [ ] CLI arguments (file path, verbose mode)
 - [ ] Response metadata display (status code, headers)

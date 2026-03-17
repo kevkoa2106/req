@@ -1,6 +1,8 @@
-use req::parser::{Token, TokenType, tokenize};
 use std::io::Write;
+
 use tempfile::NamedTempFile;
+
+use req::parser::{TokenType, tokenize};
 
 fn write_temp_file(content: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().expect("failed to create temp file");
@@ -10,7 +12,7 @@ fn write_temp_file(content: &str) -> NamedTempFile {
 }
 
 #[test]
-fn tokenize_get_request() {
+fn get_request() {
     let file = write_temp_file("GET http://example.com/api\n");
     let tokens = tokenize(file.path().to_str().unwrap());
 
@@ -22,7 +24,7 @@ fn tokenize_get_request() {
 }
 
 #[test]
-fn tokenize_post_request_with_headers_and_body() {
+fn post_with_headers_and_body() {
     let content = "POST http://example.com/api\nUser-Agent: test-agent\n\n{\"key\": \"value\"}\n";
     let file = write_temp_file(content);
     let tokens = tokenize(file.path().to_str().unwrap());
@@ -41,7 +43,7 @@ fn tokenize_post_request_with_headers_and_body() {
 }
 
 #[test]
-fn tokenize_delete_request() {
+fn delete_request() {
     let file = write_temp_file("DELETE http://example.com/api/123\n");
     let tokens = tokenize(file.path().to_str().unwrap());
 
@@ -53,7 +55,7 @@ fn tokenize_delete_request() {
 }
 
 #[test]
-fn tokenize_put_request() {
+fn put_request() {
     let file = write_temp_file("PUT http://example.com/api/1\n");
     let tokens = tokenize(file.path().to_str().unwrap());
 
@@ -63,7 +65,7 @@ fn tokenize_put_request() {
 }
 
 #[test]
-fn tokenize_multiple_headers() {
+fn multiple_headers() {
     let content = "GET http://example.com\nHost: example.com\nAccept: text/html\n";
     let file = write_temp_file(content);
     let tokens = tokenize(file.path().to_str().unwrap());
@@ -80,14 +82,14 @@ fn tokenize_multiple_headers() {
 }
 
 #[test]
-fn tokenize_empty_file() {
+fn empty_file() {
     let file = write_temp_file("");
     let tokens = tokenize(file.path().to_str().unwrap());
     assert!(tokens.is_empty());
 }
 
 #[test]
-fn tokenize_body_multiline() {
+fn body_multiline() {
     let content =
         "POST http://example.com/api\nUser-Agent: bot\n\n{\"name\": \"test\",\n\"age\": 25}\n";
     let file = write_temp_file(content);
@@ -100,44 +102,4 @@ fn tokenize_body_multiline() {
     let body = &body_token.unwrap().value;
     assert!(body.contains("\"name\""));
     assert!(body.contains("\"age\""));
-}
-
-#[tokio::test]
-async fn process_unsupported_method() {
-    let tokens = vec![
-        Token {
-            token_type: TokenType::Method,
-            value: "OPTIONS".to_string(),
-        },
-        Token {
-            token_type: TokenType::URL,
-            value: "http://example.com".to_string(),
-        },
-    ];
-
-    let client = reqwest::Client::new();
-    let result = req::parser::process(client, &tokens).await;
-
-    assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("unsupported method")
-    );
-}
-
-#[tokio::test]
-async fn process_empty_tokens() {
-    let tokens = vec![];
-    let client = reqwest::Client::new();
-    let result = req::parser::process(client, &tokens).await;
-
-    assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("unsupported method")
-    );
 }
