@@ -4,8 +4,8 @@ use reqwest::header::{ACCEPT, HOST, USER_AGENT};
 use wiremock::matchers::{body_string, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use req::new_requests::send_post_req;
-use req::parser_new::{Token, TokenType};
+use req::parser::{Token, TokenType};
+use req::requests::send_post_req;
 
 fn make_headers_map() -> HashMap<&'static str, reqwest::header::HeaderName> {
     HashMap::from([
@@ -52,7 +52,13 @@ async fn post_with_body_and_header() {
 
     let client = reqwest::Client::new();
     let headers = make_headers_map();
-    let result = send_post_req(client, &tokens, &format!("{}/api/data", server.uri()), &headers).await;
+    let result = send_post_req(
+        client,
+        &tokens,
+        &format!("{}/api/data", server.uri()),
+        &headers,
+    )
+    .await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), r#"{"id": 1}"#);
@@ -94,7 +100,13 @@ async fn post_with_host_header() {
 
     let client = reqwest::Client::new();
     let headers = make_headers_map();
-    let result = send_post_req(client, &tokens, &format!("{}/items", server.uri()), &headers).await;
+    let result = send_post_req(
+        client,
+        &tokens,
+        &format!("{}/items", server.uri()),
+        &headers,
+    )
+    .await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "created");
@@ -124,7 +136,13 @@ async fn post_empty_body() {
 
     let client = reqwest::Client::new();
     let headers = make_headers_map();
-    let result = send_post_req(client, &tokens, &format!("{}/empty", server.uri()), &headers).await;
+    let result = send_post_req(
+        client,
+        &tokens,
+        &format!("{}/empty", server.uri()),
+        &headers,
+    )
+    .await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "ok");

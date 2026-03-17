@@ -1,4 +1,4 @@
-use req::parser_new::{tokenize, Token, TokenType};
+use req::parser::{Token, TokenType, tokenize};
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -88,11 +88,14 @@ fn tokenize_empty_file() {
 
 #[test]
 fn tokenize_body_multiline() {
-    let content = "POST http://example.com/api\nUser-Agent: bot\n\n{\"name\": \"test\",\n\"age\": 25}\n";
+    let content =
+        "POST http://example.com/api\nUser-Agent: bot\n\n{\"name\": \"test\",\n\"age\": 25}\n";
     let file = write_temp_file(content);
     let tokens = tokenize(file.path().to_str().unwrap());
 
-    let body_token = tokens.iter().find(|t| matches!(t.token_type, TokenType::Body));
+    let body_token = tokens
+        .iter()
+        .find(|t| matches!(t.token_type, TokenType::Body));
     assert!(body_token.is_some());
     let body = &body_token.unwrap().value;
     assert!(body.contains("\"name\""));
@@ -113,21 +116,28 @@ async fn process_unsupported_method() {
     ];
 
     let client = reqwest::Client::new();
-    let result = req::parser_new::process(client, &tokens).await;
+    let result = req::parser::process(client, &tokens).await;
 
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("unsupported method"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("unsupported method")
+    );
 }
 
 #[tokio::test]
 async fn process_empty_tokens() {
     let tokens = vec![];
     let client = reqwest::Client::new();
-    let result = req::parser_new::process(client, &tokens).await;
+    let result = req::parser::process(client, &tokens).await;
 
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("unsupported method"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("unsupported method")
+    );
 }

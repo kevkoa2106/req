@@ -1,4 +1,4 @@
-use req::parser::{tokenize, process};
+use req::parser::{process, tokenize};
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -15,20 +15,27 @@ fn tokenize_get_request() {
     let tokens = tokenize(file.path().to_str().unwrap());
 
     assert_eq!(tokens.len(), 2);
-    assert_eq!(tokens[0].value.as_deref(), Some("GET"));
-    assert_eq!(tokens[1].value.as_deref(), Some("http://example.com/api"));
+    assert_eq!(Some(tokens[0].value.as_str()), Some("GET"));
+    assert_eq!(
+        Some(tokens[1].value.as_str()),
+        Some("http://example.com/api")
+    );
 }
 
 #[test]
 fn tokenize_post_with_headers_and_body() {
-    let content = "POST http://example.com/api\nContent-Type: application/json\n\n{\"key\": \"value\"}\n";
+    let content =
+        "POST http://example.com/api\nContent-Type: application/json\n\n{\"key\": \"value\"}\n";
     let file = write_temp_file(content);
     let tokens = tokenize(file.path().to_str().unwrap());
 
-    assert_eq!(tokens[0].value.as_deref(), Some("POST"));
-    assert_eq!(tokens[1].value.as_deref(), Some("http://example.com/api"));
-    assert_eq!(tokens[2].value.as_deref(), Some("Content-Type:"));
-    assert_eq!(tokens[3].value.as_deref(), Some("application/json"));
+    assert_eq!(Some(tokens[0].value.as_str()), Some("POST"));
+    assert_eq!(
+        Some(tokens[1].value.as_str()),
+        Some("http://example.com/api")
+    );
+    assert_eq!(Some(tokens[2].value.as_str()), Some("Content-Type:"));
+    assert_eq!(Some(tokens[3].value.as_str()), Some("application/json"));
 }
 
 #[test]
@@ -40,13 +47,14 @@ fn tokenize_empty_file() {
 
 #[test]
 fn tokenize_json_body_tokens() {
-    let content = "POST http://example.com\nContent-Type: application/json\n\n{\"name\": \"test\"}\n";
+    let content =
+        "POST http://example.com\nContent-Type: application/json\n\n{\"name\": \"test\"}\n";
     let file = write_temp_file(content);
     let tokens = tokenize(file.path().to_str().unwrap());
 
     // Body token should be present after the blank line
     assert!(tokens.len() >= 5);
-    let body_val = tokens[4].value.as_deref().unwrap();
+    let body_val = tokens[4].value.as_str();
     assert!(body_val.contains("name") || body_val.contains("{"));
 }
 
@@ -83,8 +91,10 @@ async fn process_unsupported_method() {
     let client = reqwest::Client::new();
     let result = process(client, &tokens).await;
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("unsupported method"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("unsupported method")
+    );
 }

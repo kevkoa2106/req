@@ -1,4 +1,4 @@
-use req::parser_new::{process, tokenize};
+use req::parser::{process, tokenize};
 
 #[tokio::main]
 async fn main() {

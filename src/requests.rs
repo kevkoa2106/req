@@ -1,20 +1,31 @@
-use crate::parser::Token;
-use reqwest::header::{CONTENT_TYPE, HeaderMap, USER_AGENT};
+use std::collections::HashMap;
+
+use reqwest::header::{HeaderMap, HeaderName};
+
+use crate::parser::{Token, TokenType};
 
 pub async fn send_post_req(
     client: reqwest::Client,
     tokens: &Vec<Token>,
     url: &str,
+    headers: &HashMap<&str, HeaderName>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut header_map = HeaderMap::new();
-    let mut content = String::new();
+    let mut body = String::new();
+    let mut current_header: Option<HeaderName> = None;
 
-    get_content_and_headers(tokens, &mut header_map, &mut content)?;
+    get_content_and_headers(
+        tokens,
+        headers,
+        &mut header_map,
+        &mut body,
+        &mut current_header,
+    )?;
 
     Ok(client
         .post(url)
         .headers(header_map)
-        .body(content)
+        .body(body)
         .send()
         .await?
         .text()
@@ -25,16 +36,24 @@ pub async fn send_put_req(
     client: reqwest::Client,
     tokens: &Vec<Token>,
     url: &str,
+    headers: &HashMap<&str, HeaderName>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut header_map = HeaderMap::new();
-    let mut content = String::new();
+    let mut body = String::new();
+    let mut current_header: Option<HeaderName> = None;
 
-    get_content_and_headers(tokens, &mut header_map, &mut content)?;
+    get_content_and_headers(
+        tokens,
+        headers,
+        &mut header_map,
+        &mut body,
+        &mut current_header,
+    )?;
 
     Ok(client
         .put(url)
         .headers(header_map)
-        .body(content)
+        .body(body)
         .send()
         .await?
         .text()
@@ -45,18 +64,26 @@ pub async fn send_delete_req(
     client: reqwest::Client,
     tokens: &Vec<Token>,
     url: &str,
+    headers: &HashMap<&str, HeaderName>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut header_map = HeaderMap::new();
-    let mut content = String::new();
+    let mut body = String::new();
+    let mut current_header: Option<HeaderName> = None;
 
     if tokens.len() > 2 {
-        get_content_and_headers(tokens, &mut header_map, &mut content)?;
+        get_content_and_headers(
+            tokens,
+            headers,
+            &mut header_map,
+            &mut body,
+            &mut current_header,
+        )?;
     }
 
     Ok(client
         .delete(url)
         .headers(header_map)
-        .body(content)
+        .body(body)
         .send()
         .await?
         .text()
@@ -67,18 +94,24 @@ pub async fn send_patch_req(
     client: reqwest::Client,
     tokens: &Vec<Token>,
     url: &str,
+    headers: &HashMap<&str, HeaderName>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut header_map = HeaderMap::new();
-    let mut content = String::new();
+    let mut body = String::new();
+    let mut current_header: Option<HeaderName> = None;
 
-    if tokens.len() > 2 {
-        get_content_and_headers(tokens, &mut header_map, &mut content)?;
-    }
+    get_content_and_headers(
+        tokens,
+        headers,
+        &mut header_map,
+        &mut body,
+        &mut current_header,
+    )?;
 
     Ok(client
         .patch(url)
         .headers(header_map)
-        .body(content)
+        .body(body)
         .send()
         .await?
         .text()
@@ -87,45 +120,27 @@ pub async fn send_patch_req(
 
 fn get_content_and_headers(
     tokens: &Vec<Token>,
+    headers: &HashMap<&str, HeaderName>,
     header_map: &mut HeaderMap,
-    content: &mut String,
+    body: &mut String,
+    current_header: &mut Option<HeaderName>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(header) = tokens.get(2) {
-        let header_val = tokens
-            .get(3)
-            .and_then(|t| t.value.as_deref())
-            .ok_or("missing header value")?;
-
-        match header.value.as_deref().unwrap_or_default() {
-            "Content-Type:" => {
-                header_map.insert(CONTENT_TYPE, header_val.parse()?);
+    for token in tokens {
+        match token.token_type {
+            TokenType::Header => {
+                *current_header = headers.get(token.value.as_str()).cloned();
             }
-            "User-Agent:" => {
-                header_map.insert(USER_AGENT, header_val.parse()?);
+            TokenType::HeaderValue => {
+                if let Some(h) = current_header.take() {
+                    header_map.insert(h, token.value.parse()?);
+                }
             }
-            error => return Err(format!("unsupported header: {error}").into()),
-        }
-    } else {
-        return Err("missing header".into());
+            TokenType::Body => {
+                *body = token.value.clone();
+            }
+            _ => (),
+        };
     }
-
-    *content = if tokens.len() == 5 {
-        tokens
-            .get(4)
-            .and_then(|t| t.value.as_deref())
-            .ok_or("missing body")?
-            .to_string()
-    } else if tokens.len() > 5 {
-        tokens
-            .get(4..)
-            .ok_or("missing body")?
-            .iter()
-            .filter_map(|t| t.value.as_deref())
-            .collect::<Vec<_>>()
-            .join(" ")
-    } else {
-        return Err("missing body".into());
-    };
 
     Ok(())
 }
