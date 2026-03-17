@@ -1,5 +1,5 @@
 use crate::parser::Token;
-use reqwest::header::{CONTENT_TYPE, HeaderMap};
+use reqwest::header::{CONTENT_TYPE, HeaderMap, USER_AGENT};
 
 pub async fn send_post_req(
     client: reqwest::Client,
@@ -99,6 +99,9 @@ fn get_content_and_headers(
         match header.value.as_deref().unwrap_or_default() {
             "Content-Type:" => {
                 header_map.insert(CONTENT_TYPE, header_val.parse()?);
+            }
+            "User-Agent:" => {
+                header_map.insert(USER_AGENT, header_val.parse()?);
             }
             error => return Err(format!("unsupported header: {error}").into()),
         }
