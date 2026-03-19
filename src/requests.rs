@@ -22,14 +22,21 @@ pub async fn send_post_req(
         &mut current_header,
     )?;
 
-    Ok(client
+    let resp = client
         .post(url)
         .headers(header_map)
         .body(body)
         .send()
-        .await?
-        .text()
-        .await?)
+        .await?;
+
+    let status = resp.status();
+    let text = resp.text().await?;
+
+    if status.is_success() {
+        Ok(text)
+    } else {
+        Err(format!("Status code {status}: {text}").into())
+    }
 }
 
 pub async fn send_put_req(
@@ -50,14 +57,21 @@ pub async fn send_put_req(
         &mut current_header,
     )?;
 
-    Ok(client
+    let resp = client
         .put(url)
         .headers(header_map)
         .body(body)
         .send()
-        .await?
-        .text()
-        .await?)
+        .await?;
+
+    let status = resp.status();
+    let text = resp.text().await?;
+
+    if status.is_success() {
+        Ok(text)
+    } else {
+        Err(format!("Status code {status}: {text}").into())
+    }
 }
 
 pub async fn send_delete_req(
@@ -80,14 +94,21 @@ pub async fn send_delete_req(
         )?;
     }
 
-    Ok(client
+    let resp = client
         .delete(url)
         .headers(header_map)
         .body(body)
         .send()
-        .await?
-        .text()
-        .await?)
+        .await?;
+
+    let status = resp.status();
+    let text = resp.text().await?;
+
+    if status.is_success() {
+        Ok(text)
+    } else {
+        Err(format!("Status code {status}: {text}").into())
+    }
 }
 
 pub async fn send_patch_req(
@@ -108,14 +129,21 @@ pub async fn send_patch_req(
         &mut current_header,
     )?;
 
-    Ok(client
+    let resp = client
         .patch(url)
         .headers(header_map)
         .body(body)
         .send()
-        .await?
-        .text()
-        .await?)
+        .await?;
+
+    let status = resp.status();
+    let text = resp.text().await?;
+
+    if status.is_success() {
+        Ok(text)
+    } else {
+        Err(format!("Status code {status}: {text}").into())
+    }
 }
 
 fn get_content_and_headers(

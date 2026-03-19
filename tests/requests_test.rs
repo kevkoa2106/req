@@ -176,8 +176,57 @@ async fn post_server_returns_error() {
     let headers = make_headers_map();
     let result = send_post_req(client, &tokens, &format!("{}/fail", server.uri()), &headers).await;
 
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), "internal server error");
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(err_msg.contains("500"), "error should contain status code");
+    assert!(
+        err_msg.contains("internal server error"),
+        "error should contain response body"
+    );
+}
+
+#[tokio::test]
+async fn post_server_error_verbose_has_debug_info() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/fail"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .mount(&server)
+        .await;
+
+    let tokens = vec![
+        Token {
+            token_type: TokenType::Method,
+            value: "POST".to_string(),
+        },
+        Token {
+            token_type: TokenType::URL,
+            value: format!("{}/fail", server.uri()),
+        },
+        Token {
+            token_type: TokenType::Body,
+            value: "data".to_string(),
+        },
+    ];
+
+    let client = reqwest::Client::new();
+    let headers = make_headers_map();
+    let result = send_post_req(client, &tokens, &format!("{}/fail", server.uri()), &headers).await;
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+
+    // Display format (non-verbose): short message
+    let display = err.to_string();
+    assert!(display.contains("404"));
+    assert!(display.contains("not found"));
+
+    // Debug format (verbose): includes more detail
+    let debug = format!("{err:?}");
+    assert!(debug.contains("404"));
+    assert!(debug.contains("not found"));
 }
 
 #[tokio::test]
