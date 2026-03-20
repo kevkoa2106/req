@@ -70,9 +70,9 @@ cargo build --release
 - [x] HTTPS support in parser
 - [x] Multiple headers per request
 - [ ] Variable substitution (`{{variable}}`)
-- [ ] CLI arguments (file path, verbose mode)
-- [ ] Response metadata display (status code, headers)
-- [ ] Interactive TUI mode
+- [x] CLI arguments (file path, verbose mode)
+- [x] Response metadata display (status code, headers)
+- [x] Interactive TUI mode
 
 ## License
 

@@ -1,28 +1,37 @@
 use req::{
     arg_parser,
     parser::{process, tokenize},
+    tui,
 };
 
 #[tokio::main]
 async fn main() {
-    let client = reqwest::Client::new();
     let args = arg_parser::get_args();
+
+    if !args.filename.contains(".rest") && !args.filename.contains(".http") {
+        eprintln!("file not in correct extension");
+        return;
+    }
 
     let tokens = tokenize(&args.filename);
 
-    let response = if args.filename.contains(".rest") || args.filename.contains(".http") {
-        match process(client, &tokens).await {
-            Ok(c) => c,
-            Err(e) => {
-                if args.verbose {
-                    format!("{e:?}")
-                } else {
-                    e.to_string()
-                }
+    if args.tui {
+        if let Err(e) = tui::run(tokens).await {
+            eprintln!("TUI error: {e}");
+        }
+        return;
+    }
+
+    let client = reqwest::Client::new();
+    let response = match process(client, &tokens).await {
+        Ok(c) => c,
+        Err(e) => {
+            if args.verbose {
+                format!("{e:?}")
+            } else {
+                e.to_string()
             }
         }
-    } else {
-        String::from("file not in correct extension")
     };
 
     match formatjson::format_json(response.as_str()) {
