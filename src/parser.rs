@@ -1,10 +1,12 @@
 use std::{
     collections::HashMap,
-    fs::File,
+    fs::{self, File},
     io::{BufRead, BufReader},
+    path::Path,
     sync::LazyLock,
 };
 
+use regex::Regex;
 use reqwest::header::{
     ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, CACHE_CONTROL, CONNECTION, CONTENT_TYPE, HOST,
     HeaderName, IF_MODIFIED_SINCE, IF_NONE_MATCH, REFERER, UPGRADE_INSECURE_REQUESTS, USER_AGENT,
@@ -134,4 +136,58 @@ pub async fn process(
         "PATCH" => Ok(send_patch_req(client, &tokens, url.as_str(), &HEADERS).await?),
         _ => Err(format!("unsupported method: {method}").into()),
     }
+}
+
+pub fn load_env_vars(
+    rest_file: &str,
+    environment: &str,
+    use_private: bool,
+) -> HashMap<String, String> {
+    let dir = Path::new(rest_file).parent().unwrap_or(Path::new("."));
+
+    // Load base env
+    let mut vars = load_env_file(&dir.join("http-client.env.json"), environment);
+
+    // Private overrides base
+    if use_private {
+        let private = load_env_file(&dir.join("http-client.private.env.json"), environment);
+        vars.extend(private); // keys in private overwrite keys in base
+    }
+
+    vars
+}
+
+fn load_env_file(path: &Path, environment: &str) -> HashMap<String, String> {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return HashMap::new(),
+    };
+
+    let envs: HashMap<String, HashMap<String, serde_json::Value>> =
+        serde_json::from_str(&content).unwrap_or_default();
+
+    envs.get(environment)
+        .map(|vars| {
+            vars.iter()
+                .map(|(k, v)| {
+                    let val = match v {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    (k.clone(), val)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub fn substitute(input: &str, vars: &HashMap<String, String>) -> String {
+    let re = Regex::new(r"\{\{(\s*[\w\-]+\s*)\}\}").unwrap();
+    re.replace_all(input, |caps: &regex::Captures| {
+        let key = caps[1].trim();
+        vars.get(key)
+            .cloned()
+            .unwrap_or_else(|| caps[0].to_string()) // leave unresolved
+    })
+    .to_string()
 }

@@ -1,6 +1,6 @@
 use req::{
     arg_parser,
-    parser::{process, tokenize},
+    parser::{load_env_vars, process, substitute, tokenize},
     tui,
 };
 
@@ -13,13 +13,18 @@ async fn main() {
         return;
     }
 
-    let tokens = tokenize(&args.filename);
+    let mut tokens = tokenize(&args.filename);
 
     if args.tui {
         if let Err(e) = tui::run(tokens).await {
             eprintln!("TUI error: {e}");
         }
         return;
+    }
+
+    let vars = load_env_vars(&args.filename, &args.env, args.private);
+    for token in &mut tokens {
+        token.value = substitute(&token.value, &vars);
     }
 
     let client = reqwest::Client::new();

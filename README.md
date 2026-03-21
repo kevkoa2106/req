@@ -10,6 +10,8 @@ A lightweight command-line HTTP client written in Rust. Define your HTTP request
 - JSON request bodies
 - Pretty-printed JSON responses
 - Async execution with Tokio
+- Environment variables via `http-client.env.json` with `{{variable}}` substitution
+- Private environment overrides via `http-client.private.env.json`
 
 ## Usage
 
@@ -33,10 +35,61 @@ Content-Type: application/json
 2. Run:
 
 ```sh
-cargo run
+cargo run -- http.rest
 ```
 
 The response will be printed as formatted JSON to stdout.
+
+## Environment Variables
+
+Create an `http-client.env.json` file alongside your `.rest` file to define variables per environment:
+
+```json
+{
+  "development": {
+    "host": "localhost",
+    "id-value": 12345
+  },
+  "production": {
+    "host": "example.com",
+    "id-value": 6789
+  }
+}
+```
+
+Use `{{variable}}` placeholders in your `.rest` file:
+
+```http
+GET http://{{host}}/api/json/get?id={{id-value}}
+Content-Type: application/json
+```
+
+Run with a specific environment using `--env`:
+
+```sh
+cargo run -- http.rest --env production
+```
+
+The default environment is `development`.
+
+### Private Variables
+
+For sensitive values like passwords and API keys, create an `http-client.private.env.json` file:
+
+```json
+{
+  "development": {
+    "username": "dev-user",
+    "password": "dev-secret"
+  }
+}
+```
+
+Use the `--private` flag to load private variables (they override values from `http-client.env.json`):
+
+```sh
+cargo run -- http.rest --env production --private
+```
 
 ## .rest File Format
 
@@ -60,8 +113,10 @@ cargo build --release
 | `reqwest` | HTTP client |
 | `tokio` | Async runtime |
 | `formatjson` | JSON pretty-printing |
-| `ratatui` | Terminal UI (planned) |
-| `crossterm` | Terminal handling (planned) |
+| `ratatui` | Terminal UI |
+| `crossterm` | Terminal handling |
+| `serde_json` | JSON parsing for env files |
+| `regex` | Variable substitution |
 
 ## Roadmap
 
@@ -69,7 +124,7 @@ cargo build --release
 - [ ] Multiple requests per file (separated by `###`)
 - [x] HTTPS support in parser
 - [x] Multiple headers per request
-- [ ] Variable substitution (`{{variable}}`)
+- [x] Variable substitution (`{{variable}}`)
 - [x] CLI arguments (file path, verbose mode)
 - [x] Response metadata display (status code, headers)
 - [x] Interactive TUI mode
