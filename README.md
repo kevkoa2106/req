@@ -20,6 +20,34 @@ A lightweight command-line HTTP client written in Rust. Define your HTTP request
 - Environment variables via `http-client.env.json` with `{{variable}}` substitution
 - Private environment overrides via `http-client.private.env.json`
 
+## Installation
+
+### From Homebrew 🍺
+
+```sh
+brew install kevkoa2106/tap/req
+```
+
+### From GitHub Releases
+
+Download the latest prebuilt binary for your platform from the [Releases page](https://github.com/kevkoa2106/req/releases):
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) 🍎 | [req-aarch64-apple.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.2/req-aarch64-apple.tar.gz) |
+| macOS (Intel) 🍎 | [req-x86_64-apple.tar.gz](https://github.com/kevkoa2106/req/releases/latest/download/req-x86_64-apple-darwin.tar.gz) |
+| Linux (x86_64) 🐧 | [req-x86_64-linux.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.2/req-x86_64-apple.tar.gz) |
+| Linux (ARM) 🐧 | [req-aarch64-linux.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.2/req-aarch64-linux.tar.gz) |
+| Windows (x86_64) | [req-win.exe](https://github.com/kevkoa2106/req/releases/download/v0.1.2/req-win.exe) |
+
+### From source
+
+```sh
+git clone https://github.com/kevkoa2106/req.git
+cd req
+cargo build --release
+```
+
 ## Usage
 
 1. Define your request in a `http.rest` file:
