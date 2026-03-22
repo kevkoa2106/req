@@ -70,10 +70,30 @@ Content-Type: application/json
 2. Run:
 
 ```sh
-cargo run -- http.rest
+req http.rest
 ```
 
 The response will be printed as formatted JSON to stdout.
+
+## Arguments
+
+| Argument | Short | Long | Description | Default |
+|----------|-------|------|-------------|---------|
+| `<INPUT>` | | | The input `.rest` or `.http` file | *required* |
+| `-v` | `-v` | `--verbose` | Shows full error output | `false` |
+| `-t` | `-t` | `--tui` | Launch interactive TUI mode | `false` |
+| `-e` | `-e` | `--env` | Environment name from `http-client.env.json` | `development` |
+| | | `--private` | Load `http-client.private.env.json` | `false` |
+
+**Examples:**
+
+```sh
+req api.rest                          # basic request
+req api.rest -v                       # with verbose errors
+req api.rest -t                       # interactive TUI mode
+req api.rest --env production         # use production environment
+req api.rest --env staging --private  # staging env with private variables
+```
 
 ## Environment Variables
 
