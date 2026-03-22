@@ -1,6 +1,13 @@
 # req
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-stable-orange)](https://www.rust-lang.org/)
+[![GitHub stars](https://img.shields.io/github/stars/kevkoa2106/req)](https://github.com/kevkoa2106/req/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/kevkoa2106/req)](https://github.com/kevkoa2106/req/issues)
+
 A lightweight command-line HTTP client written in Rust. Define your HTTP requests in `.rest` files and execute them from the terminal with pretty-printed JSON responses.
+
+![Demo](assets/demo.gif)
 
 ## Features
 
