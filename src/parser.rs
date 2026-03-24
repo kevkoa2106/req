@@ -48,18 +48,46 @@ pub struct Token {
     pub value: String,
 }
 
-pub fn tokenize(filename: &str) -> Vec<Token> {
+pub fn tokenize(filename: &str) -> Vec<Vec<Token>> {
     let mut tokens: Vec<Token> = Vec::new();
+    let mut requests: Vec<Vec<Token>> = Vec::new();
 
     let reader = BufReader::new(File::open(filename).expect("Cannot open file"));
 
     let mut lines = reader.lines().peekable();
 
     while let Some(Ok(line)) = lines.next() {
+        if line.trim() == "###" {
+            if !tokens.is_empty() {
+                requests.push(tokens.clone());
+                tokens.clear();
+            }
+            continue;
+        }
+
         if line.trim().is_empty() {
+            // Skip blank lines before a request starts (e.g. after ###)
+            if tokens.is_empty() {
+                continue;
+            }
             let mut body = String::new();
             for remaining in lines.by_ref() {
                 if let Ok(l) = remaining {
+                    if l.trim() == "###" {
+                        if !body.is_empty() {
+                            tokens.push(Token {
+                                token_type: TokenType::Body,
+                                value: body,
+                            });
+                        }
+                        requests.push(tokens.clone());
+                        tokens.clear();
+                        body = String::new();
+                        break;
+                    }
+                    if l.trim().is_empty() {
+                        continue;
+                    }
                     if !body.is_empty() {
                         body.push(' ');
                     }
@@ -72,7 +100,7 @@ pub fn tokenize(filename: &str) -> Vec<Token> {
                     value: body,
                 });
             }
-            break;
+            continue;
         }
 
         if let Some((key, value)) = line.split_once(':') {
@@ -110,7 +138,12 @@ pub fn tokenize(filename: &str) -> Vec<Token> {
         }
     }
 
-    tokens
+    // Push the last request if not terminated by ###
+    if !tokens.is_empty() {
+        requests.push(tokens);
+    }
+
+    requests
 }
 
 pub async fn process(
@@ -136,6 +169,17 @@ pub async fn process(
         "PATCH" => Ok(send_patch_req(client, &tokens, url.as_str(), &HEADERS).await?),
         _ => Err(format!("unsupported method: {method}").into()),
     }
+}
+
+pub async fn process_all(
+    client: reqwest::Client,
+    requests: &Vec<Vec<Token>>,
+) -> Vec<Result<String, Box<dyn std::error::Error>>> {
+    let mut results = Vec::new();
+    for tokens in requests {
+        results.push(process(client.clone(), tokens).await);
+    }
+    results
 }
 
 pub fn load_env_vars(

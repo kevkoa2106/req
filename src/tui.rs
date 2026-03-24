@@ -17,19 +17,16 @@ enum Panel {
     Response,
 }
 
-struct App {
+struct RequestTab {
     tokens: Vec<Token>,
     response_text: String,
     status_info: String,
     is_loading: bool,
     request_scroll: u16,
     response_scroll: u16,
-    active_panel: Panel,
-    should_quit: bool,
-    client: reqwest::Client,
 }
 
-impl App {
+impl RequestTab {
     fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
@@ -38,9 +35,6 @@ impl App {
             is_loading: false,
             request_scroll: 0,
             response_scroll: 0,
-            active_panel: Panel::Request,
-            should_quit: false,
-            client: reqwest::Client::new(),
         }
     }
 
@@ -57,17 +51,23 @@ impl App {
         (method, url)
     }
 
+    fn label(&self) -> String {
+        let (method, url) = self.method_and_url();
+        let short_url = url
+            .trim_start_matches("https://")
+            .trim_start_matches("http://");
+        let short_url = if short_url.len() > 30 {
+            &short_url[..30]
+        } else {
+            short_url
+        };
+        format!("{method} {short_url}")
+    }
+
     fn request_lines(&self) -> Vec<Line<'_>> {
         let (method, url) = self.method_and_url();
 
-        let method_color = match method.as_str() {
-            "GET" => Color::Green,
-            "POST" => Color::Yellow,
-            "PUT" => Color::Blue,
-            "PATCH" => Color::Magenta,
-            "DELETE" => Color::Red,
-            _ => Color::White,
-        };
+        let method_color = method_to_color(&method);
 
         let mut lines: Vec<Line> = vec![Line::from(vec![
             Span::styled(
@@ -113,7 +113,6 @@ impl App {
         for token in &self.tokens {
             if matches!(token.token_type, TokenType::Body) {
                 lines.push(Line::raw(""));
-                // Pretty-print the body JSON if possible
                 let body_str = match formatjson::format_json(&token.value) {
                     Ok(formatted) => formatted,
                     Err(_) => token.value.clone(),
@@ -136,34 +135,76 @@ impl App {
             .map(|l| Line::raw(l.to_string()))
             .collect()
     }
+}
+
+struct App {
+    tabs: Vec<RequestTab>,
+    active_tab: usize,
+    active_panel: Panel,
+    should_quit: bool,
+    client: reqwest::Client,
+}
+
+impl App {
+    fn new(requests: Vec<Vec<Token>>) -> Self {
+        let tabs = requests.into_iter().map(RequestTab::new).collect();
+        Self {
+            tabs,
+            active_tab: 0,
+            active_panel: Panel::Request,
+            should_quit: false,
+            client: reqwest::Client::new(),
+        }
+    }
+
+    fn current_tab(&self) -> &RequestTab {
+        &self.tabs[self.active_tab]
+    }
+
+    fn current_tab_mut(&mut self) -> &mut RequestTab {
+        &mut self.tabs[self.active_tab]
+    }
 
     fn scroll_up(&mut self) {
+        let tab = &mut self.tabs[self.active_tab];
         match self.active_panel {
-            Panel::Request => self.request_scroll = self.request_scroll.saturating_sub(1),
-            Panel::Response => self.response_scroll = self.response_scroll.saturating_sub(1),
+            Panel::Request => tab.request_scroll = tab.request_scroll.saturating_sub(1),
+            Panel::Response => tab.response_scroll = tab.response_scroll.saturating_sub(1),
         }
     }
 
     fn scroll_down(&mut self) {
+        let tab = &mut self.tabs[self.active_tab];
         match self.active_panel {
-            Panel::Request => self.request_scroll = self.request_scroll.saturating_add(1),
-            Panel::Response => self.response_scroll = self.response_scroll.saturating_add(1),
+            Panel::Request => tab.request_scroll = tab.request_scroll.saturating_add(1),
+            Panel::Response => tab.response_scroll = tab.response_scroll.saturating_add(1),
         }
     }
 }
 
-pub async fn run(tokens: Vec<Token>) -> Result<(), Box<dyn std::error::Error>> {
+fn method_to_color(method: &str) -> Color {
+    match method {
+        "GET" => Color::Green,
+        "POST" => Color::Yellow,
+        "PUT" => Color::Blue,
+        "PATCH" => Color::Magenta,
+        "DELETE" => Color::Red,
+        _ => Color::White,
+    }
+}
+
+pub async fn run(requests: Vec<Vec<Token>>) -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = ratatui::init();
-    let result = run_app(&mut terminal, tokens).await;
+    let result = run_app(&mut terminal, requests).await;
     ratatui::restore();
     result
 }
 
 async fn run_app(
     terminal: &mut DefaultTerminal,
-    tokens: Vec<Token>,
+    requests: Vec<Vec<Token>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut app = App::new(tokens);
+    let mut app = App::new(requests);
 
     loop {
         terminal.draw(|frame| draw(frame, &app))?;
@@ -183,52 +224,62 @@ async fn run_app(
                     }
                     KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
                     KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
+                    KeyCode::Char(c) if c.is_ascii_digit() => {
+                        let idx = c.to_digit(10).unwrap() as usize;
+                        // 1-indexed: press '1' for tab 0, '2' for tab 1, etc.
+                        if idx >= 1 && idx <= app.tabs.len() {
+                            app.active_tab = idx - 1;
+                        }
+                    }
                     KeyCode::Enter => {
-                        if !app.is_loading {
-                            app.is_loading = true;
-                            app.response_text = String::from("Sending request...");
-                            app.status_info = String::new();
+                        let tab = app.current_tab_mut();
+                        if !tab.is_loading {
+                            tab.is_loading = true;
+                            tab.response_text = String::from("Sending request...");
+                            tab.status_info = String::new();
 
-                            // Redraw to show loading state
                             terminal.draw(|frame| draw(frame, &app))?;
 
                             let start = Instant::now();
-                            match process(app.client.clone(), &app.tokens).await {
+                            let client = app.client.clone();
+                            let tokens = &app.tabs[app.active_tab].tokens;
+                            match process(client, tokens).await {
                                 Ok(body) => {
                                     let elapsed = start.elapsed();
-                                    app.response_text = match formatjson::format_json(&body) {
+                                    let tab = app.current_tab_mut();
+                                    tab.response_text = match formatjson::format_json(&body) {
                                         Ok(formatted) => formatted,
                                         Err(_) => body,
                                     };
-                                    app.status_info = format!(" 200 OK  |  {:.0?}", elapsed);
+                                    tab.status_info = format!(" 200 OK  |  {:.0?}", elapsed);
                                 }
                                 Err(e) => {
                                     let elapsed = start.elapsed();
                                     let err_str = e.to_string();
-                                    // Try to extract status code from error message
+                                    let tab = app.current_tab_mut();
                                     if err_str.starts_with("Status code ") {
                                         let status_part = err_str
                                             .split(':')
                                             .next()
                                             .unwrap_or("")
                                             .replace("Status code ", "");
-                                        app.status_info =
+                                        tab.status_info =
                                             format!(" {status_part}  |  {:.0?}", elapsed);
-                                        // Show error body formatted if possible
                                         let body =
                                             err_str.splitn(2, ": ").nth(1).unwrap_or(&err_str);
-                                        app.response_text = match formatjson::format_json(body) {
+                                        tab.response_text = match formatjson::format_json(body) {
                                             Ok(formatted) => formatted,
                                             Err(_) => body.to_string(),
                                         };
                                     } else {
-                                        app.status_info = format!(" ERROR  |  {:.0?}", elapsed);
-                                        app.response_text = err_str;
+                                        tab.status_info = format!(" ERROR  |  {:.0?}", elapsed);
+                                        tab.response_text = err_str;
                                     }
                                 }
                             }
-                            app.is_loading = false;
-                            app.response_scroll = 0;
+                            let tab = app.current_tab_mut();
+                            tab.is_loading = false;
+                            tab.response_scroll = 0;
                             app.active_panel = Panel::Response;
                         }
                     }
@@ -249,17 +300,20 @@ fn draw(frame: &mut Frame, app: &App) {
     let outer = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
+            Constraint::Length(1), // tab bar
             Constraint::Min(1),    // main content
             Constraint::Length(1), // status bar
             Constraint::Length(1), // keybindings
         ])
         .split(frame.area());
 
-    let main_area = outer[0];
-    let status_area = outer[1];
-    let help_area = outer[2];
+    let tab_area = outer[0];
+    let main_area = outer[1];
+    let status_area = outer[2];
+    let help_area = outer[3];
 
-    // Split main area into request (top) and response (bottom)
+    draw_tab_bar(frame, app, tab_area);
+
     let panels = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
@@ -268,19 +322,43 @@ fn draw(frame: &mut Frame, app: &App) {
     draw_request_panel(frame, app, panels[0]);
     draw_response_panel(frame, app, panels[1]);
     draw_status_bar(frame, app, status_area);
-    draw_help_bar(frame, help_area);
+    draw_help_bar(frame, app, help_area);
+}
+
+fn draw_tab_bar(frame: &mut Frame, app: &App, area: Rect) {
+    let mut spans: Vec<Span> = Vec::new();
+
+    for (i, tab) in app.tabs.iter().enumerate() {
+        let (method, _) = tab.method_and_url();
+        let method_color = method_to_color(&method);
+        let label = format!(" {} {} ", i + 1, tab.label());
+
+        if i == app.active_tab {
+            spans.push(Span::styled(
+                label,
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(method_color)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        } else {
+            spans.push(Span::styled(
+                label,
+                Style::default().fg(method_color).bg(Color::Rgb(40, 40, 40)),
+            ));
+        }
+        spans.push(Span::raw(" "));
+    }
+
+    let tab_bar =
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(Color::Rgb(20, 20, 20)));
+    frame.render_widget(tab_bar, area);
 }
 
 fn draw_request_panel(frame: &mut Frame, app: &App, area: Rect) {
-    let (method, _) = app.method_and_url();
-    let method_color = match method.as_str() {
-        "GET" => Color::Green,
-        "POST" => Color::Yellow,
-        "PUT" => Color::Blue,
-        "PATCH" => Color::Magenta,
-        "DELETE" => Color::Red,
-        _ => Color::White,
-    };
+    let tab = app.current_tab();
+    let (method, _) = tab.method_and_url();
+    let method_color = method_to_color(&method);
 
     let border_style = if app.active_panel == Panel::Request {
         Style::default().fg(method_color)
@@ -293,21 +371,20 @@ fn draw_request_panel(frame: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let lines = app.request_lines();
+    let lines = tab.request_lines();
     let paragraph = Paragraph::new(Text::from(lines.clone()))
         .block(block)
         .wrap(Wrap { trim: false })
-        .scroll((app.request_scroll, 0));
+        .scroll((tab.request_scroll, 0));
 
     frame.render_widget(paragraph, area);
 
-    // Scrollbar
     if app.active_panel == Panel::Request {
         let content_len = lines.len();
         let visible = area.height.saturating_sub(2) as usize;
         if content_len > visible {
             let mut scrollbar_state = ScrollbarState::new(content_len.saturating_sub(visible))
-                .position(app.request_scroll as usize);
+                .position(tab.request_scroll as usize);
             frame.render_stateful_widget(
                 Scrollbar::new(ScrollbarOrientation::VerticalRight),
                 area,
@@ -318,13 +395,15 @@ fn draw_request_panel(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_response_panel(frame: &mut Frame, app: &App, area: Rect) {
+    let tab = app.current_tab();
+
     let border_style = if app.active_panel == Panel::Response {
         Style::default().fg(Color::Cyan)
     } else {
         Style::default().fg(Color::DarkGray)
     };
 
-    let title = if app.is_loading {
+    let title = if tab.is_loading {
         " Response (loading...) "
     } else {
         " Response "
@@ -335,21 +414,20 @@ fn draw_response_panel(frame: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let lines = app.response_lines();
+    let lines = tab.response_lines();
     let paragraph = Paragraph::new(Text::from(lines.clone()))
         .block(block)
         .wrap(Wrap { trim: false })
-        .scroll((app.response_scroll, 0));
+        .scroll((tab.response_scroll, 0));
 
     frame.render_widget(paragraph, area);
 
-    // Scrollbar
     if app.active_panel == Panel::Response {
         let content_len = lines.len();
         let visible = area.height.saturating_sub(2) as usize;
         if content_len > visible {
             let mut scrollbar_state = ScrollbarState::new(content_len.saturating_sub(visible))
-                .position(app.response_scroll as usize);
+                .position(tab.response_scroll as usize);
             frame.render_stateful_widget(
                 Scrollbar::new(ScrollbarOrientation::VerticalRight),
                 area,
@@ -360,16 +438,9 @@ fn draw_response_panel(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let (method, url) = app.method_and_url();
-
-    let method_color = match method.as_str() {
-        "GET" => Color::Green,
-        "POST" => Color::Yellow,
-        "PUT" => Color::Blue,
-        "PATCH" => Color::Magenta,
-        "DELETE" => Color::Red,
-        _ => Color::White,
-    };
+    let tab = app.current_tab();
+    let (method, url) = tab.method_and_url();
+    let method_color = method_to_color(&method);
 
     let mut spans = vec![
         Span::styled(
@@ -379,20 +450,19 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled(format!(" {url} "), Style::default().fg(Color::White)),
     ];
 
-    if !app.status_info.is_empty() {
-        // Color the status based on success/error
-        let status_color = if app.status_info.contains("200")
-            || app.status_info.contains("201")
-            || app.status_info.contains("204")
+    if !tab.status_info.is_empty() {
+        let status_color = if tab.status_info.contains("200")
+            || tab.status_info.contains("201")
+            || tab.status_info.contains("204")
         {
             Color::Green
-        } else if app.status_info.contains("ERROR") {
+        } else if tab.status_info.contains("ERROR") {
             Color::Red
         } else {
             Color::Yellow
         };
         spans.push(Span::styled(
-            format!("│{}", app.status_info),
+            format!("│{}", tab.status_info),
             Style::default().fg(status_color),
         ));
     }
@@ -403,8 +473,8 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(status_bar, area);
 }
 
-fn draw_help_bar(frame: &mut Frame, area: Rect) {
-    let help = Line::from(vec![
+fn draw_help_bar(frame: &mut Frame, app: &App, area: Rect) {
+    let mut help_spans = vec![
         Span::styled(
             " Enter ",
             Style::default().fg(Color::Black).bg(Color::DarkGray).bold(),
@@ -423,13 +493,27 @@ fn draw_help_bar(frame: &mut Frame, area: Rect) {
         ),
         Span::styled(" Scroll ", Style::default().fg(Color::Gray)),
         Span::raw(" "),
-        Span::styled(
-            " q ",
-            Style::default().fg(Color::Black).bg(Color::DarkGray).bold(),
-        ),
-        Span::styled(" Quit ", Style::default().fg(Color::Gray)),
-    ]);
+    ];
 
-    let help_bar = Paragraph::new(help).style(Style::default().bg(Color::Rgb(20, 20, 20)));
+    if app.tabs.len() > 1 {
+        help_spans.push(Span::styled(
+            format!(" 1-{} ", app.tabs.len()),
+            Style::default().fg(Color::Black).bg(Color::DarkGray).bold(),
+        ));
+        help_spans.push(Span::styled(
+            " Switch request ",
+            Style::default().fg(Color::Gray),
+        ));
+        help_spans.push(Span::raw(" "));
+    }
+
+    help_spans.push(Span::styled(
+        " q ",
+        Style::default().fg(Color::Black).bg(Color::DarkGray).bold(),
+    ));
+    help_spans.push(Span::styled(" Quit ", Style::default().fg(Color::Gray)));
+
+    let help_bar =
+        Paragraph::new(Line::from(help_spans)).style(Style::default().bg(Color::Rgb(20, 20, 20)));
     frame.render_widget(help_bar, area);
 }

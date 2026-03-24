@@ -5,20 +5,22 @@
 [![GitHub stars](https://img.shields.io/github/stars/kevkoa2106/req)](https://github.com/kevkoa2106/req/stargazers)
 [![GitHub issues](https://img.shields.io/github/issues/kevkoa2106/req)](https://github.com/kevkoa2106/req/issues)
 
-A lightweight command-line HTTP client written in Rust. Define your HTTP requests in `.rest` files and execute them from the terminal with pretty-printed JSON responses.
+A lightweight command-line HTTP client written in Rust. Define your HTTP requests in `.rest` and `.http` files and execute them from the terminal with pretty-printed JSON responses.
 
 ![Demo](assets/demo.gif)
 
 ## Features
 
 - Parse and execute HTTP requests from `.rest` or `.http` files
-- Support for **GET**, **POST**,**PUT**,**PATCH**, **DELETE** methods
+- **Multiple requests per file** separated by `###`
+- Support for **GET**, **POST**, **PUT**, **PATCH**, **DELETE** methods
 - Custom headers (e.g. `Content-Type`)
 - JSON request bodies
 - Pretty-printed JSON responses
 - Async execution with Tokio
 - Environment variables via `http-client.env.json` with `{{variable}}` substitution
 - Private environment overrides via `http-client.private.env.json`
+- Interactive TUI mode with tabbed view for multiple requests
 
 ## Installation
 
@@ -50,7 +52,7 @@ cargo build --release
 
 ## Usage
 
-1. Define your request in a `http.rest` file:
+1. Define your request(s) in a `http.rest` file:
 
 ```http
 POST https://api.restful-api.dev/objects
@@ -65,7 +67,13 @@ Content-Type: application/json
     "Hard disk size": "1 TB"
   }
 }
+
+###
+
+GET https://api.restful-api.dev/objects
 ```
+
+Use `###` to separate multiple requests in a single file. Each request will be executed in order.
 
 2. Run:
 
@@ -73,7 +81,7 @@ Content-Type: application/json
 req http.rest
 ```
 
-The response will be printed as formatted JSON to stdout.
+The response(s) will be printed as formatted JSON to stdout, separated by `###`.
 
 ## Arguments
 
@@ -122,7 +130,7 @@ Content-Type: application/json
 Run with a specific environment using `--env`:
 
 ```sh
-cargo run -- http.rest --env production
+req http.rest --env production
 ```
 
 The default environment is `development`.
@@ -143,7 +151,7 @@ For sensitive values like passwords and API keys, create an `http-client.private
 Use the `--private` flag to load private variables (they override values from `http-client.env.json`):
 
 ```sh
-cargo run -- http.rest --env production --private
+req http.rest --env production --private
 ```
 
 ## .rest File Format
@@ -153,7 +161,14 @@ METHOD URL
 Header-Name: Header-Value (optional)
 
 Body (optional, separated by a blank line)
+
+###
+
+METHOD URL
+...
 ```
+
+Use `###` on its own line to separate multiple requests. Each request can have its own method, URL, headers, and body. In TUI mode, each request gets its own tab — press `1`-`9` to switch between them.
 
 ## Building
 
@@ -176,7 +191,7 @@ cargo build --release
 ## Roadmap
 
 - [x] Support all HTTP methods (PUT, DELETE, PATCH, GET, POST)
-- [ ] Multiple requests per file (separated by `###`)
+- [x] Multiple requests per file (separated by `###`)
 - [x] HTTPS support in parser
 - [x] Multiple headers per request
 - [x] Variable substitution (`{{variable}}`)
