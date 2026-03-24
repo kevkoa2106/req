@@ -36,11 +36,11 @@ Download the latest prebuilt binary for your platform from the [Releases page](h
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon) 🍎 | [req-aarch64-apple.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.2/req-aarch64-apple.tar.gz) |
-| macOS (Intel) 🍎 | [req-x86_64-apple.tar.gz](https://github.com/kevkoa2106/req/releases/latest/download/req-x86_64-apple-darwin.tar.gz) |
-| Linux (x86_64) 🐧 | [req-x86_64-linux.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.2/req-x86_64-apple.tar.gz) |
-| Linux (ARM) 🐧 | [req-aarch64-linux.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.2/req-aarch64-linux.tar.gz) |
-| Windows (x86_64) | [req-win.exe](https://github.com/kevkoa2106/req/releases/download/v0.1.2/req-win.exe) |
+| macOS (Apple Silicon) 🍎 | [req-aarch64-apple-darwin.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.3/req-aarch64-apple-darwin.tar.gz) |
+| macOS (Intel) 🍎 | [req-x86_64-apple-darwin.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.3/req-x86_64-apple-darwin.tar.gz) |
+| Linux (x86_64) 🐧 | [req-x86_64-unknown-linux-gnu.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.3/req-x86_64-unknown-linux-gnu.tar.gz) |
+| Linux (ARM) 🐧 | [req-aarch64-unknown-linux-gnu.tar.gz](https://github.com/kevkoa2106/req/releases/download/v0.1.3/req-aarch64-unknown-linux-gnu.tar.gz) |
+| Windows (x86_64) | [req.exe](https://github.com/kevkoa2106/req/releases/download/v0.1.3/req.exe) |
 
 ### From source
 

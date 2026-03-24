@@ -3,5 +3,6 @@
 http.rest
 http-client.env.json
 http-client.private.env.json
+req-*
 
 /.claude
